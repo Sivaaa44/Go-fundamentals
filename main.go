@@ -5,7 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 )
+
+// GLOBAL STORE
+var StoreMap = make(map[string]string)
+var mu sync.Mutex
+
+// var store = SharedStore({StoreMap, mu})
 
 func clientRoutine(conn net.Conn) {
 	defer conn.Close()
