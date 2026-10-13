@@ -20,10 +20,12 @@ func clientRoutine(conn net.Conn) {
 		if err != nil {
 			if err != io.EOF {
 				fmt.Println("error:", err)
+				conn.Write([]byte("-ERR " + err.Error() + "\r\n"))
 			}
 			return
 		}
-		fmt.Printf("%q\n", cmd) // for now, just print the parsed command
+		reply := handleCommand(cmd)
+		conn.Write([]byte(reply))
 	}
 }
 
