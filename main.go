@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 )
 
 // GLOBAL STORE
-var StoreMap = make(map[string]string)
-var mu sync.Mutex
+var StoreMap = SharedStore{Store: make(map[string]string)}
 
 // var store = SharedStore({StoreMap, mu})
 
@@ -18,14 +16,14 @@ func clientRoutine(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	for {
-		line, err := reader.ReadString('\n')
+		cmd, err := readCommand(reader)
 		if err != nil {
 			if err != io.EOF {
-				fmt.Println("read error:", err)
+				fmt.Println("error:", err)
 			}
 			return
 		}
-		fmt.Println(line)
+		fmt.Printf("%q\n", cmd) // for now, just print the parsed command
 	}
 }
 

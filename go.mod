@@ -1,3 +1,3 @@
-module main
+module mini-redis
 
 go 1.27.1
