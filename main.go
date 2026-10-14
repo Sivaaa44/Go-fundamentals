@@ -12,7 +12,7 @@ import (
 )
 
 var store = NewStore()
-var aof *AOF // nil until persistence is opened
+var aof *AOF
 
 func clientRoutine(conn net.Conn) {
 	defer conn.Close()
@@ -28,7 +28,7 @@ func clientRoutine(conn net.Conn) {
 		}
 		reply := handleCommand(cmd)
 		if _, err := conn.Write([]byte(reply)); err != nil {
-			return // client is gone
+			return
 		}
 	}
 }
