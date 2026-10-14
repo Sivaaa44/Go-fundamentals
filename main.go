@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net"
+	"os"
+	"os/signal"
+	"time"
 )
 
-// GLOBAL STORE
-var StoreMap = SharedStore{Store: make(map[string]string)}
-
-// var store = SharedStore({StoreMap, mu})
+var store = NewStore()
+var aof *AOF // nil until persistence is opened
 
 func clientRoutine(conn net.Conn) {
 	defer conn.Close()
@@ -25,26 +27,58 @@ func clientRoutine(conn net.Conn) {
 			return
 		}
 		reply := handleCommand(cmd)
-		conn.Write([]byte(reply))
+		if _, err := conn.Write([]byte(reply)); err != nil {
+			return // client is gone
+		}
 	}
 }
 
-func createServer() {
-	listen, err := net.Listen("tcp", ":6379")
+func createServer(addr string) error {
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		fmt.Println("error listening to port 6379 :", err)
+		return err
 	}
-	defer listen.Close()
+	defer ln.Close()
+	log.Println("listening on", addr)
+
 	for {
-		conn, err := listen.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("error accepting client connection to port", err)
+			fmt.Println("accept error:", err)
+			continue
 		}
 		go clientRoutine(conn)
 	}
 }
 
 func main() {
-	createServer()
-	fmt.Println("main function")
+	// 1. rebuild state from disk
+	if err := replay("appendonly.aof"); err != nil {
+		log.Fatal(err)
+	}
+
+	// 2. now start logging new writes
+	var err error
+	aof, err = OpenAOF("appendonly.aof")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 3. background expiry
+	store.StartSweeper(time.Second)
+
+	// 4. Ctrl+C: close the file cleanly, then exit
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt)
+		<-sig
+		fmt.Println("\nshutting down")
+		aof.Close()
+		os.Exit(0)
+	}()
+
+	// 5. serve
+	if err := createServer(":6379"); err != nil {
+		log.Fatal(err)
+	}
 }
